@@ -1,0 +1,90 @@
+/* Sidebar Container */
+.admin-sidebar {
+  width: 220px;
+  height: calc(100vh - 90px); /* full height minus navbar */
+  background: linear-gradient(180deg, #007bff, #0056b3); /* matches navbar */
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 15px;
+  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.2);
+  position: fixed;
+  top: 90px; /* below navbar */
+  left: 0;
+  z-index: 900; /* below navbar */
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  transition: all 0.3s ease;
+}
+
+/* Sidebar Title */
+.admin-sidebar h2 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 24px;
+  text-align: center;
+  color: #ffffff;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.25);
+}
+
+/* Menu Links */
+.admin-sidebar a {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  margin: 6px 0;
+  text-decoration: none;
+  color: #e2e8f0;  /* light gray text */
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+/* Icon spacing */
+.admin-sidebar a span {
+  display: flex;
+  align-items: center;
+  font-size: 16px;
+  margin-right: 10px;
+}
+
+/* Hover Effect */
+.admin-sidebar a:hover {
+  background: rgba(255, 255, 255, 0.15); /* subtle overlay */
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+/* Active Menu */
+.admin-sidebar a.active {
+  background: #ffffff; /* white background */
+  color: #0056b3;      /* navbar blue text */
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+
+/* Responsive Sidebar */
+@media (max-width: 768px) {
+  .admin-sidebar {
+    width: 180px;
+    padding: 15px 10px;
+    top: 56px; /* smaller navbar on mobile */
+    height: calc(100vh - 56px);
+  }
+
+  .admin-sidebar h2 {
+    font-size: 16px;
+    margin-bottom: 18px;
+  }
+
+  .admin-sidebar a {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .admin-sidebar a span {
+    font-size: 14px;
+  }
+}

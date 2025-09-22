@@ -1,0 +1,298 @@
+/* AppliedSchemes.css */
+
+.applied-schemes-container {
+  background: white;
+  border-radius: 15px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  margin-bottom: 2rem;
+}
+
+.schemes-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.schemes-header h2 {
+  color: #333;
+  font-size: 1.8rem;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.schemes-header p {
+  color: #666;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.schemes-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #666;
+}
+
+.loading-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  animation: pulse 2s infinite;
+  color: #667eea;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.schemes-error {
+  text-align: center;
+  padding: 2rem;
+  color: #c33;
+}
+
+.retry-btn {
+  background: #667eea;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.3s ease;
+}
+
+.retry-btn:hover {
+  background: #5a6fd8;
+}
+
+.no-applications {
+  text-align: center;
+  padding: 3rem 2rem;
+  color: #666;
+}
+
+.no-applications-icon {
+  font-size: 4rem;
+  color: #ddd;
+  margin-bottom: 1rem;
+}
+
+.no-applications h3 {
+  color: #333;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+}
+
+.no-applications p {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.applications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.application-card {
+  border: 2px solid #f0f0f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+  background: #fafafa;
+}
+
+.application-card:hover {
+  border-color: #667eea;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.1);
+  transform: translateY(-2px);
+}
+
+.application-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.scheme-info {
+  flex: 1;
+  min-width: 200px;
+}
+
+.scheme-name {
+  color: #333;
+  font-size: 1.3rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem 0;
+}
+
+.scheme-category {
+  background: #667eea;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 15px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.application-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.status-icon {
+  font-size: 1.2rem;
+}
+
+.status-icon.approved {
+  color: #28a745;
+}
+
+.status-icon.rejected {
+  color: #dc3545;
+}
+
+.status-icon.under-review {
+  color: #ffc107;
+}
+
+.status-icon.pending {
+  color: #6c757d;
+}
+
+.status-text {
+  font-weight: 600;
+  font-size: 0.9rem;
+  text-transform: capitalize;
+}
+
+.status-text.approved {
+  color: #28a745;
+}
+
+.status-text.rejected {
+  color: #dc3545;
+}
+
+.status-text.under-review {
+  color: #ffc107;
+}
+
+.status-text.pending {
+  color: #6c757d;
+}
+
+.application-content {
+  color: #555;
+}
+
+.scheme-description {
+  margin: 0 0 1rem 0;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.applied-documents,
+.application-notes {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  border-left: 4px solid #667eea;
+}
+
+.applied-documents h4,
+.application-notes h4 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.applied-documents p,
+.application-notes p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.application-dates {
+  display: flex;
+  gap: 2rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e0e0e0;
+  flex-wrap: wrap;
+}
+
+.date-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.date-item svg {
+  color: #667eea;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .applied-schemes-container {
+    padding: 1.5rem;
+  }
+
+  .application-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .application-status {
+    align-self: flex-start;
+  }
+
+  .application-dates {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .schemes-header h2 {
+    font-size: 1.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .applied-schemes-container {
+    padding: 1rem;
+  }
+
+  .application-card {
+    padding: 1rem;
+  }
+
+  .scheme-name {
+    font-size: 1.1rem;
+  }
+
+  .applied-documents,
+  .application-notes {
+    padding: 0.75rem;
+  }
+}
