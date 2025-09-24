@@ -24,6 +24,7 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
   const [qNextOnNo, setQNextOnNo] = useState("");
   const [qTerminalYes, setQTerminalYes] = useState(false);
   const [qTerminalNo, setQTerminalNo] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState(null);
 
   // Form states
   const [schemeName, setSchemeName] = useState("");
@@ -40,12 +41,36 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
     loadSchemes();
   }, []);
 
+  // Helper: match categories flexibly across different labels
+  const matchesCategory = (dbCat = "", sel = "") => {
+    if (!sel) return true;
+    const c = String(dbCat).toLowerCase();
+    switch (sel) {
+      case 'agriculture':
+        return c === 'agriculture' || c.includes('agricult');
+      case 'banking':
+        return c.includes('bank') || c.includes('finance');
+      case 'business':
+        return c.includes('business') || c.includes('entrepreneur');
+      case 'education':
+        return c === 'education' || c.includes('educat');
+      case 'health':
+        return c === 'health' || c.includes('health');
+      case 'it_science':
+        return c === 'it_science' || (c.includes('it') && c.includes('science'));
+      case 'women':
+        return c.includes('women');
+      default:
+        return true;
+    }
+  };
+
   // Filter schemes when category changes
   useEffect(() => {
     if (selectedCategory === "") {
       setFilteredSchemes(schemes);
     } else {
-      setFilteredSchemes(schemes.filter(scheme => scheme.category === selectedCategory));
+      setFilteredSchemes(schemes.filter(scheme => matchesCategory(scheme.category, selectedCategory)));
     }
   }, [schemes, selectedCategory]);
 
@@ -102,6 +127,7 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
     setQNextOnNo("");
     setQTerminalYes(false);
     setQTerminalNo(false);
+    setEditingQuestionId(null);
     setShowEligibilityMgr(true);
     // load all schemes initially
     loadEligSchemes("");
@@ -143,13 +169,14 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
     setEligSchemes([]);
     setEligSelectedScheme(null);
     setSchemeQuestions([]);
+    setEditingQuestionId(null);
   };
 
   const loadEligSchemes = (categoryFilter) => {
     axios.get("http://localhost:9000/schemes")
       .then((res) => {
         const all = res.data || [];
-        const list = categoryFilter ? all.filter(s => s.category === categoryFilter) : all;
+        const list = categoryFilter ? all.filter(s => matchesCategory(s.category, categoryFilter)) : all;
         setEligSchemes(list);
       })
       .catch((err) => console.error("Failed to load schemes:", err));
@@ -181,31 +208,66 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
     const is_terminal_yes = qTerminalYes ? 1 : 0;
     const is_terminal_no = qTerminalNo ? 1 : 0;
 
-    // Basic consistency: if not terminal on a branch, require next id
-    if (!is_terminal_yes && (next_on_yes === null || Number.isNaN(next_on_yes))) {
-      alert("Please provide 'Next on Yes (Question ID)' or mark 'Terminal on Yes'.");
-      return;
-    }
-    if (!is_terminal_no && (next_on_no === null || Number.isNaN(next_on_no))) {
-      alert("Please provide 'Next on No (Question ID)' or mark 'Terminal on No'.");
-      return;
-    }
+    // Simpler rule: Next pointers are optional. If left blank, flow will auto-advance to the next question by sort order.
 
     const payload = { sort_order, question_text, expected_answer, next_on_yes, next_on_no, is_terminal_yes, is_terminal_no };
     if (!payload.question_text) { alert("Please enter question text"); return; }
-    axios.post(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions`, payload)
-      .then(() => {
-        // refresh list
-        return axios.get(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions`);
-      })
+
+    const req = editingQuestionId
+      ? axios.put(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions/${editingQuestionId}`, payload)
+      : axios.post(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions`, payload);
+
+    req
+      .then(() => axios.get(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions`))
       .then((res) => {
         setSchemeQuestions(res.data || []);
         // reset minimal fields
         setQText("");
+        setQSortOrder(1);
+        setQExpected('yes');
+        setQNextOnYes("");
+        setQNextOnNo("");
+        setQTerminalYes(false);
+        setQTerminalNo(false);
+        setEditingQuestionId(null);
       })
       .catch((err) => {
         console.error(err);
-        alert("Failed to add question: " + (err?.response?.data || err?.message || 'Unknown error'));
+        alert((editingQuestionId ? "Failed to update question: " : "Failed to add question: ") + (err?.response?.data || err?.message || 'Unknown error'));
+      });
+  };
+
+  const editQuestion = (q) => {
+    setEditingQuestionId(q.id);
+    setQSortOrder(q.sort_order ?? 1);
+    setQText(q.question_text || "");
+    setQExpected(q.expected_answer === 'no' ? 'no' : 'yes');
+    setQNextOnYes(q.next_on_yes ?? "");
+    setQNextOnNo(q.next_on_no ?? "");
+    setQTerminalYes(!!q.is_terminal_yes);
+    setQTerminalNo(!!q.is_terminal_no);
+  };
+
+  const cancelEditQuestion = () => {
+    setEditingQuestionId(null);
+    setQSortOrder(1);
+    setQText("");
+    setQExpected('yes');
+    setQNextOnYes("");
+    setQNextOnNo("");
+    setQTerminalYes(false);
+    setQTerminalNo(false);
+  };
+
+  const deleteQuestion = (q) => {
+    if (!eligSelectedScheme) return;
+    if (!window.confirm('Delete this question?')) return;
+    axios.delete(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions/${q.id}`)
+      .then(() => axios.get(`http://localhost:9000/schemes/${eligSelectedScheme.id}/questions`))
+      .then((res) => setSchemeQuestions(res.data || []))
+      .catch((err) => {
+        console.error(err);
+        alert('Failed to delete question: ' + (err?.response?.data || err?.message || 'Unknown error'));
       });
   };
 
@@ -696,8 +758,16 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
                           <ol style={{ margin: 0, paddingLeft: 18 }}>
                             {schemeQuestions.map((q) => (
                               <li key={q.id} style={{ marginBottom: 8 }}>
-                                <div style={{ fontWeight: 700 }}>{q.question_text}</div>
-                                <div style={{ fontSize: 12, color: '#6b7280' }}>ID: {q.id}, order: {q.sort_order}, expected: {q.expected_answer}, next yes: {q.next_on_yes || '-'}, next no: {q.next_on_no || '-'}, terminalYes: {q.is_terminal_yes ? 'Y' : 'N'}, terminalNo: {q.is_terminal_no ? 'Y' : 'N'}</div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                                  <div>
+                                    <div style={{ fontWeight: 700 }}>{q.question_text}</div>
+                                    <div style={{ fontSize: 12, color: '#6b7280' }}>ID: {q.id}, order: {q.sort_order}, expected: {q.expected_answer}, next yes: {q.next_on_yes || '-'}, next no: {q.next_on_no || '-'}, terminalYes: {q.is_terminal_yes ? 'Y' : 'N'}, terminalNo: {q.is_terminal_no ? 'Y' : 'N'}</div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 8 }}>
+                                    <button type="button" className="btn-secondary" onClick={() => editQuestion(q)}>Edit</button>
+                                    <button type="button" className="btn-secondary" onClick={() => deleteQuestion(q)}>Delete</button>
+                                  </div>
+                                </div>
                               </li>
                             ))}
                           </ol>
@@ -711,7 +781,7 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
                   </div>
 
                   <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, background: '#fff' }}>
-                    <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', fontWeight: 800 }}>Add Question</div>
+                    <div style={{ padding: 12, borderBottom: '1px solid #e5e7eb', fontWeight: 800 }}>{editingQuestionId ? 'Edit Question' : 'Add Question'}</div>
                     <form style={{ padding: 12, display: 'grid', gap: 10 }} onSubmit={submitQuestion}>
                       <div>
                         <label style={{ fontWeight: 700 }}>Sort Order</label>
@@ -730,12 +800,12 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
                       </div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                         <div>
-                          <label style={{ fontWeight: 700 }}>Next on Yes (Question ID)</label>
-                          <input className="input" type="number" value={qNextOnYes} onChange={(e) => setQNextOnYes(e.target.value)} placeholder="leave blank if terminal" />
+                          <label style={{ fontWeight: 700 }}>Next on Yes (Question ID) — optional</label>
+                          <input className="input" type="number" value={qNextOnYes} onChange={(e) => setQNextOnYes(e.target.value)} placeholder="leave blank to auto-go to next question" />
                         </div>
                         <div>
-                          <label style={{ fontWeight: 700 }}>Next on No (Question ID)</label>
-                          <input className="input" type="number" value={qNextOnNo} onChange={(e) => setQNextOnNo(e.target.value)} placeholder="leave blank if terminal" />
+                          <label style={{ fontWeight: 700 }}>Next on No (Question ID) — optional</label>
+                          <input className="input" type="number" value={qNextOnNo} onChange={(e) => setQNextOnNo(e.target.value)} placeholder="leave blank to auto-go to next question" />
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: 12 }}>
@@ -747,8 +817,8 @@ function SchemesPanel({ onAdd, onUpdate, onView }) {
                         </label>
                       </div>
                       <div className="modal-footer" style={{ padding: 0, borderTop: 'none', background: 'transparent' }}>
-                        <button type="button" className="btn-secondary" onClick={() => { setQText(""); }}>Clear</button>
-                        <button type="submit" className="btn-primary" disabled={!eligSelectedScheme}>Add Question</button>
+                        <button type="button" className="btn-secondary" onClick={cancelEditQuestion}>{editingQuestionId ? 'Cancel' : 'Clear'}</button>
+                        <button type="submit" className="btn-primary" disabled={!eligSelectedScheme}>{editingQuestionId ? 'Update Question' : 'Add Question'}</button>
                       </div>
                     </form>
                   </div>

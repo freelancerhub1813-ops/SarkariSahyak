@@ -2,8 +2,10 @@ import { useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { FaUser, FaCog, FaSignOutAlt } from "react-icons/fa";
 import "../styles/NavBarprivate.css";
+import { useI18n, LANG_OPTIONS } from "../contexts/I18nContext";
 
 function NavBarPrivate({ setIsAuthenticated }) {
+  const { t, lang, setLang } = useI18n();
   const [open, setOpen] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const nav = useNavigate();
@@ -35,7 +37,17 @@ function NavBarPrivate({ setIsAuthenticated }) {
 
   return (
     <nav className="navbar">
-      <h2 className="logo">Sarkari Sahayak</h2>
+      <h2 className="logo">{t("appName")}</h2>
+      <select
+        className="lang-select"
+        value={lang}
+        onChange={(e) => setLang(e.target.value)}
+        aria-label="Select language"
+      >
+        {LANG_OPTIONS.map((o) => (
+          <option key={o.code} value={o.code}>{o.label}</option>
+        ))}
+      </select>
       <div className="dropdown">
         <button onClick={() => setOpen(!open)} className="dropbtn">
           <div className="profile-info">
@@ -50,9 +62,7 @@ function NavBarPrivate({ setIsAuthenticated }) {
                 <FaUser />
               </div>
             )}
-            <span className="profile-name">
-              {userProfile?.full_name || localStorage.getItem("email")}
-            </span>
+            <span className="profile-name">{userProfile?.full_name || localStorage.getItem("email")}</span>
             <span className="dropdown-arrow">⬇</span>
           </div>
         </button>

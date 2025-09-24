@@ -16,6 +16,27 @@
   transition: all 0.3s ease;
 }
 
+/* Off-canvas behavior on small screens */
+.sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  z-index: 899;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s ease;
+}
+.sidebar-backdrop.show { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 900px) {
+  .admin-sidebar {
+    transform: translateX(-100%);
+    top: 56px; /* align with mobile navbar */
+    height: calc(100vh - 56px);
+  }
+  .admin-sidebar.open { transform: translateX(0); }
+}
+
 /* Sidebar Title */
 .admin-sidebar h2 {
   font-size: 18px;

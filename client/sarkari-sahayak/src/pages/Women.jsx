@@ -4,8 +4,11 @@ import { FaSearch, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 import SchemeCard from '../components/SchemeCard';
 import '../styles/SchemeCard.css';
+import { useI18n } from '../contexts/I18nContext';
+import { translateSchemes } from '../utils/translator';
 
 function Women() {
+  const { lang } = useI18n();
   const [schemes, setSchemes] = useState([]);
   const [filteredSchemes, setFilteredSchemes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +17,7 @@ function Women() {
 
   useEffect(() => {
     loadSchemes();
-  }, []);
+  }, [lang]);
 
   // Filter schemes when search term changes
   useEffect(() => {
@@ -30,22 +33,23 @@ function Women() {
     }
   }, [schemes, searchTerm]);
 
-  const loadSchemes = () => {
+  const loadSchemes = async () => {
     setLoading(true);
     setError(null);
-    
-    axios.get("http://localhost:9000/schemes")
-      .then((res) => {
-        // Filter only women schemes
-        const womenSchemes = res.data.filter(scheme => scheme.category === 'women');
-        setSchemes(womenSchemes);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load schemes:", err);
-        setError("Failed to load schemes. Please try again later.");
-        setLoading(false);
+    try {
+      const res = await axios.get("http://localhost:9000/schemes");
+      const womenSchemes = res.data.filter(scheme => {
+        const c = (scheme.category || '').toLowerCase();
+        return c.includes('women') || c.includes('mahila') || c.includes('empower');
       });
+      const localized = await translateSchemes(womenSchemes, lang);
+      setSchemes(localized);
+    } catch (err) {
+      console.error("Failed to load schemes:", err);
+      setError("Failed to load schemes. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const clearSearch = () => {

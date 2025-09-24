@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import "../styles/AdminNavBar.css";
 
-function AdminNavBar() {
+function AdminNavBar({ onToggleSidebar }) {
   const nav = useNavigate();
 
   const handleLogout = () => {
@@ -15,6 +15,9 @@ function AdminNavBar() {
   return (
     <nav className="admin-navbar">
       <div className="navbar-left">
+        <button className="menu-btn" onClick={onToggleSidebar} aria-label="Toggle sidebar">
+          &#9776;
+        </button>
         <h2 className="logo">Sarkari Sahayak</h2>
       </div>
       <div className="navbar-right">

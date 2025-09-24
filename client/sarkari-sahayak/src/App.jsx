@@ -14,6 +14,8 @@ import NavBarPublic from './components/NavBarPublic';
 import NavBarPrivate from './components/NavBarPrivate';
 import AdminNavBar from './components/AdminNavBar';
 import AppliedSchemes from './components/AppliedSchemes';
+import { I18nProvider } from './contexts/I18nContext';
+import LanguageModal from './components/LanguageModal';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -50,28 +52,33 @@ function App() {
     }
   }
 
+  const needsLangChoice = location.pathname.startsWith('/dashboard') && localStorage.getItem('ui_lang_set') !== 'true';
+
   return (
-    <div className="app">
-      {navbar}
+    <I18nProvider>
+      <div className="app">
+        {navbar}
+        {needsLangChoice && <LanguageModal onClose={() => localStorage.setItem('ui_lang_set','true')} />}
 
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/" element={<Splash />} />
-        <Route path="/roleselect" element={<RoleSelect />} />
-        <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} />} />
-        <Route path="/signup" element={<Signup />} />
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Splash />} />
+          <Route path="/roleselect" element={<RoleSelect />} />
+          <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} />} />
+          <Route path="/signup" element={<Signup />} />
 
-        {/* Admin Routes */}
-        <Route path="/admin-login" element={<AdminLogin setIsAdmin={setIsAdmin} />} />
-        <Route path="/admin-dashboard" element={<AdminDashboard />} />
+          {/* Admin Routes */}
+          <Route path="/admin-login" element={<AdminLogin setIsAdmin={setIsAdmin} />} />
+          <Route path="/admin-dashboard" element={<AdminDashboard />} />
 
-        {/* User Routes */}
-        <Route path="/dashboard/*" element={<Dashboard />} />
-        <Route path="/changepassword" element={<ChangePassword />} />
-        <Route path="/profile" element={<UserProfile />} />
-        <Route path="/applications" element={<AppliedSchemes />} />
-      </Routes>
-    </div>
+          {/* User Routes */}
+          <Route path="/dashboard/*" element={<Dashboard />} />
+          <Route path="/changepassword" element={<ChangePassword />} />
+          <Route path="/profile" element={<UserProfile />} />
+          <Route path="/applications" element={<AppliedSchemes />} />
+        </Routes>
+      </div>
+    </I18nProvider>
   );
 }
 

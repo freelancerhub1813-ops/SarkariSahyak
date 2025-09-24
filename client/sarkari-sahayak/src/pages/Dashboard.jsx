@@ -4,6 +4,7 @@ import {
   FaHeartbeat, FaAtom, FaFemale, FaUser, FaKey, FaListUl
 } from "react-icons/fa";
 import "../styles/dashboard.css";
+import { useI18n } from "../contexts/I18nContext";
 
 import Agriculture from "./Agriculture";
 import Banking from "./Banking";
@@ -14,18 +15,19 @@ import ITScience from "./ITScience";
 import Women from "./Women";
 
 function Dashboard() {
+  const { t } = useI18n();
   const location = useLocation();
   const isDashboardHome = location.pathname === "/dashboard";
   const userEmail = localStorage.getItem("email") || "User";
 
   const sections = [
-    { name: "Agriculture", path: "agriculture", icon: <FaLeaf className="dashboard-icon icon-green" /> },
-    { name: "Banking", path: "banking", icon: <FaUniversity className="dashboard-icon icon-blue" /> },
-    { name: "Business", path: "business", icon: <FaChartLine className="dashboard-icon icon-orange" /> },
-    { name: "Education", path: "education", icon: <FaGraduationCap className="dashboard-icon icon-purple" /> },
-    { name: "Health", path: "health", icon: <FaHeartbeat className="dashboard-icon icon-red" /> },
-    { name: "IT & Science", path: "itscience", icon: <FaAtom className="dashboard-icon icon-teal" /> },
-    { name: "Women", path: "women", icon: <FaFemale className="dashboard-icon icon-pink" /> },
+    { name: t("dashboard.sections.agriculture"), path: "agriculture", icon: <FaLeaf className="dashboard-icon icon-green" /> },
+    { name: t("dashboard.sections.banking"), path: "banking", icon: <FaUniversity className="dashboard-icon icon-blue" /> },
+    { name: t("dashboard.sections.business"), path: "business", icon: <FaChartLine className="dashboard-icon icon-orange" /> },
+    { name: t("dashboard.sections.education"), path: "education", icon: <FaGraduationCap className="dashboard-icon icon-purple" /> },
+    { name: t("dashboard.sections.health"), path: "health", icon: <FaHeartbeat className="dashboard-icon icon-red" /> },
+    { name: t("dashboard.sections.it_science"), path: "itscience", icon: <FaAtom className="dashboard-icon icon-teal" /> },
+    { name: t("dashboard.sections.women"), path: "women", icon: <FaFemale className="dashboard-icon icon-pink" /> },
   ];
 
   return (
@@ -34,22 +36,22 @@ function Dashboard() {
         <>
           <div className="dashboard-header">
             <div className="dashboard-hero">
-              <h1 className="dashboard-title">सरकारी सहायक</h1>
-              <p className="dashboard-subtitle">Welcome, {userEmail}</p>
+              <h1 className="dashboard-title">{t("dashboard.title")}</h1>
+              <p className="dashboard-subtitle">{t("dashboard.welcome", { name: userEmail })}</p>
             </div>
 
             <div className="quick-actions">
               <Link to="/profile" className="qa-btn">
                 <FaUser />
-                <span>My Profile</span>
+                <span>{t("dashboard.profile")}</span>
               </Link>
               <Link to="/changepassword" className="qa-btn">
                 <FaKey />
-                <span>Change Password</span>
+                <span>{t("dashboard.changePassword")}</span>
               </Link>
               <Link to="/applications" className="qa-btn">
                 <FaListUl />
-                <span>My Applications</span>
+                <span>{t("dashboard.myApplications")}</span>
               </Link>
             </div>
           </div>

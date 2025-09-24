@@ -4,8 +4,11 @@ import { FaSearch, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 import SchemeCard from '../components/SchemeCard';
 import '../styles/SchemeCard.css';
+import { useI18n } from '../contexts/I18nContext';
+import { translateSchemes } from '../utils/translator';
 
 function Health() {
+  const { lang } = useI18n();
   const [schemes, setSchemes] = useState([]);
   const [filteredSchemes, setFilteredSchemes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +17,7 @@ function Health() {
 
   useEffect(() => {
     loadSchemes();
-  }, []);
+  }, [lang]);
 
   // Filter schemes when search term changes
   useEffect(() => {
@@ -30,22 +33,20 @@ function Health() {
     }
   }, [schemes, searchTerm]);
 
-  const loadSchemes = () => {
+  const loadSchemes = async () => {
     setLoading(true);
     setError(null);
-    
-    axios.get("http://localhost:9000/schemes")
-      .then((res) => {
-        // Filter only health schemes
-        const healthSchemes = res.data.filter(scheme => scheme.category === 'health');
-        setSchemes(healthSchemes);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load schemes:", err);
-        setError("Failed to load schemes. Please try again later.");
-        setLoading(false);
-      });
+    try {
+      const res = await axios.get("http://localhost:9000/schemes");
+      const healthSchemes = res.data.filter(scheme => (scheme.category || '').toLowerCase().trim() === 'health');
+      const localized = await translateSchemes(healthSchemes, lang);
+      setSchemes(localized);
+    } catch (err) {
+      console.error("Failed to load schemes:", err);
+      setError("Failed to load schemes. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const clearSearch = () => {

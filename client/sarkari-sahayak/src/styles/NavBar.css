@@ -15,6 +15,24 @@
   backdrop-filter: blur(10px);
 }
 
+.navbar-left { display: flex; align-items: center; gap: 10px; }
+.menu-btn { display: none; background: transparent; border: none; color: #fff; font-size: 22px; cursor: pointer; }
+
+/* Language select */
+.lang-select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 10px;
+  padding: 6px 12px;
+  margin-left: auto;
+  font-weight: 600;
+}
+.lang-select option { color: #111; }
+
 /* Logo */
 .logo {
   font-size: 22px;
@@ -44,4 +62,28 @@
 
 .nav-links li a:hover {
   color: #ffd369;
+}
+
+/* Mobile responsive menu */
+@media (max-width: 768px) {
+  .navbar {
+    padding: 10px 16px;
+  }
+  .menu-btn { display: inline-block; }
+  .lang-select { margin-left: 8px; padding: 6px 10px; }
+  .nav-links {
+    position: absolute;
+    right: 12px;
+    top: 60px;
+    background: rgba(25, 20, 44, 0.96);
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: none;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .nav-links.open { display: flex; }
+  .nav-links li a { font-size: 15px; }
 }

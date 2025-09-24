@@ -4,8 +4,11 @@ import { FaSearch, FaTimes } from 'react-icons/fa';
 import axios from 'axios';
 import SchemeCard from '../components/SchemeCard';
 import '../styles/SchemeCard.css';
+import { useI18n } from '../contexts/I18nContext';
+import { translateSchemes } from '../utils/translator';
 
 function Education() {
+  const { lang } = useI18n();
   const [schemes, setSchemes] = useState([]);
   const [filteredSchemes, setFilteredSchemes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,7 +17,7 @@ function Education() {
 
   useEffect(() => {
     loadSchemes();
-  }, []);
+  }, [lang]);
 
   // Filter schemes when search term changes
   useEffect(() => {
@@ -30,22 +33,20 @@ function Education() {
     }
   }, [schemes, searchTerm]);
 
-  const loadSchemes = () => {
+  const loadSchemes = async () => {
     setLoading(true);
     setError(null);
-    
-    axios.get("http://localhost:9000/schemes")
-      .then((res) => {
-        // Filter only education schemes
-        const educationSchemes = res.data.filter(scheme => scheme.category === 'education');
-        setSchemes(educationSchemes);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load schemes:", err);
-        setError("Failed to load schemes. Please try again later.");
-        setLoading(false);
-      });
+    try {
+      const res = await axios.get("http://localhost:9000/schemes");
+      const educationSchemes = res.data.filter(scheme => (scheme.category || '').toLowerCase().trim() === 'education');
+      const localized = await translateSchemes(educationSchemes, lang);
+      setSchemes(localized);
+    } catch (err) {
+      console.error("Failed to load schemes:", err);
+      setError("Failed to load schemes. Please try again later.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const clearSearch = () => {
@@ -55,7 +56,7 @@ function Education() {
   return (
     <div className="page-content">
       <div className="page-header">
-        <Link to="/dashboard" className="back-button">← Back to Dashboard</Link>
+        <Link to="/dashboard" className="back-button">{"← " + (useI18n().t("common.backToDashboard"))}</Link>
         <h1>Education Schemes</h1>
         <p>Explore government schemes and programs for education sector.</p>
       </div>

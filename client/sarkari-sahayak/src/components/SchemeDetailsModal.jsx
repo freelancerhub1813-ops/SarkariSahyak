@@ -3,8 +3,11 @@ import { FaTimes, FaCheckCircle, FaTimesCircle } from "react-icons/fa";
 import axios from "axios";
 import "../styles/AdminDashboard.css";
 import { createPortal } from "react-dom";
+import { useI18n } from "../contexts/I18nContext";
+import { translateScheme } from "../utils/translator";
 
-function SchemeDetailsModal({ schemeId, onClose }) {
+function SchemeDetailsModal({ schemeId, onClose, initialApplyOpen = false }) {
+  const { lang } = useI18n();
   const [scheme, setScheme] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,6 +15,12 @@ function SchemeDetailsModal({ schemeId, onClose }) {
   const [currentQId, setCurrentQId] = useState(null);
   const [eligibilityResult, setEligibilityResult] = useState(null); // 'eligible' | 'not_eligible'
   const [showEligModal, setShowEligModal] = useState(false);
+  const [showApplyModal, setShowApplyModal] = useState(false);
+  const [applicantName, setApplicantName] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadedDocs, setUploadedDocs] = useState([]); // array of URLs
+  const [thankYou, setThankYou] = useState(false);
+  const [applicantAge, setApplicantAge] = useState("");
 
   useEffect(() => {
     if (!schemeId) return;
@@ -23,7 +32,8 @@ function SchemeDetailsModal({ schemeId, onClose }) {
         // Load scheme first (required)
         const s = await axios.get(`http://localhost:9000/schemes/${schemeId}`);
         if (!isMounted) return;
-        setScheme(s.data);
+        const localized = await translateScheme(s.data, lang);
+        setScheme(localized);
       } catch (e) {
         if (!isMounted) return;
         setError("Failed to load scheme details");
@@ -48,7 +58,69 @@ function SchemeDetailsModal({ schemeId, onClose }) {
     return () => {
       isMounted = false;
     };
-  }, [schemeId]);
+  }, [schemeId, lang]);
+
+  // Apply flow handlers (component scope)
+  const openApply = () => {
+    setApplicantName("");
+    setUploadedDocs([]);
+    setThankYou(false);
+    setShowApplyModal(true);
+  };
+
+  const handleUploadDocs = async (files) => {
+    const email = localStorage.getItem('email') || '';
+    const name = applicantName || (email && email.split('@')[0]) || 'user';
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      const uploaded = [];
+      for (let i = 0; i < files.length; i++) {
+        if (typeof FormData === 'undefined') { throw new Error('FormData not supported'); }
+        const fd = new FormData();
+        fd.append('document', files[i]);
+        fd.append('user_email', email);
+        fd.append('user_name', name);
+        const res = await axios.post('http://localhost:9000/upload/document', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+        if (res?.data?.path) uploaded.push(res.data.path);
+      }
+      setUploadedDocs((prev) => [...prev, ...uploaded]);
+    } catch (e) {
+      console.error('Upload failed', e);
+      alert('Failed to upload document(s). Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const submitApplication = async () => {
+    const email = localStorage.getItem('email');
+    if (!email) { alert('Please login before applying.'); return; }
+    try {
+      await axios.post('http://localhost:9000/apply-scheme', {
+        user_email: email,
+        scheme_id: schemeId,
+        applied_documents: uploadedDocs.join(','),
+        application_notes: `Applicant: ${applicantName || 'N/A'} | Age: ${applicantAge || 'N/A'}`,
+      });
+      setThankYou(true);
+      // Auto-close after short delay
+      setTimeout(() => {
+        setShowApplyModal(false);
+      }, 1500);
+    } catch (e) {
+      console.error(e);
+      const msg = e?.response?.data || e?.message || 'Failed to submit application.';
+      alert(msg);
+    }
+  };
+
+  // Open Apply modal directly if requested
+  useEffect(() => {
+    if (initialApplyOpen) {
+      setShowApplyModal(true);
+    }
+  }, [initialApplyOpen]);
 
   const startEligibility = () => {
     if (questions.length === 0) return;
@@ -75,25 +147,31 @@ function SchemeDetailsModal({ schemeId, onClose }) {
       setCurrentQId(null);
       return;
     }
-    // If terminal or no next question, mark eligible
-    if (terminal || nextId == null) {
+    // If terminal, mark eligible immediately
+    if (terminal) {
       setEligibilityResult('eligible');
       setCurrentQId(null);
       return;
     }
-    // Resolve next question: prefer by id, fallback to sort_order match
-    const nextById = questions.find(q2 => q2.id === nextId);
-    if (nextById) {
-      setCurrentQId(nextById.id);
+    // If explicit pointer is provided, try to use it (by id first, then by sort_order)
+    if (nextId != null) {
+      const nextById = questions.find(q2 => q2.id === nextId);
+      if (nextById) { setCurrentQId(nextById.id); return; }
+      const nextByOrder = questions.find(q2 => q2.sort_order === nextId);
+      if (nextByOrder) { setCurrentQId(nextByOrder.id); return; }
+      console.warn('Next question not found for pointer:', nextId, 'available:', questions.map(q => ({id:q.id, order:q.sort_order})));
+      // If pointer broken, fall through to auto-advance by sort order
+    }
+    // Simpler flow: auto-advance to the next higher sort_order question, if any
+    const currentOrder = q.sort_order;
+    const candidates = questions
+      .filter(q2 => q2.sort_order > currentOrder)
+      .sort((a, b) => a.sort_order - b.sort_order);
+    if (candidates.length > 0) {
+      setCurrentQId(candidates[0].id);
       return;
     }
-    const nextByOrder = questions.find(q2 => q2.sort_order === nextId);
-    if (nextByOrder) {
-      setCurrentQId(nextByOrder.id);
-      return;
-    }
-    console.warn('Next question not found for pointer:', nextId, 'available:', questions.map(q => ({id:q.id, order:q.sort_order})));
-    // If we can't resolve, stop flow gracefully as eligible (since current was correct & non-terminal but broken link)
+    // No further questions -> eligible
     setEligibilityResult('eligible');
     setCurrentQId(null);
   };
@@ -102,7 +180,7 @@ function SchemeDetailsModal({ schemeId, onClose }) {
 
   return (
     <>
-      {createPortal(
+      {typeof document !== 'undefined' && createPortal(
         <div className="modal-backdrop" onClick={onClose}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -149,14 +227,17 @@ function SchemeDetailsModal({ schemeId, onClose }) {
                 </div>
               )}
 
-              {questions.length > 0 && (
-                <button className="btn-primary" onClick={startEligibility}>Eligibility Checker</button>
-              )}
+              <div style={{ display: 'flex', gap: 10 }}>
+                {questions.length > 0 && (
+                  <button className="btn-primary" onClick={startEligibility}>Eligibility Checker</button>
+                )}
+                <button className="btn-secondary" onClick={openApply}>Apply Scheme</button>
+              </div>
             </div>
           </div>
         </div>, document.body)}
 
-      {showEligModal && createPortal(
+      {showEligModal && typeof document !== 'undefined' && createPortal(
         <div className="modal-backdrop" onClick={() => setShowEligModal(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -180,6 +261,49 @@ function SchemeDetailsModal({ schemeId, onClose }) {
               {eligibilityResult === 'not_eligible' && (
                 <div style={{ marginTop: 12, color: '#dc2626', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700 }}><FaTimesCircle /> You are not eligible for this scheme.</div>
               )}
+            </div>
+          </div>
+        </div>, document.body)}
+
+      {showApplyModal && typeof document !== 'undefined' && createPortal(
+        <div className="modal-backdrop" onClick={() => setShowApplyModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Apply for Scheme</h3>
+              <button className="icon-btn" onClick={() => setShowApplyModal(false)} aria-label="Close"><FaTimes /></button>
+            </div>
+            <div className="modal-body" style={{ display: 'grid', gap: 10 }}>
+              <div style={{ fontWeight: 700 }}>Enter your details</div>
+              <label>
+                Your Name
+                <input className="input" value={applicantName} onChange={(e) => setApplicantName(e.target.value)} placeholder="Enter your full name" />
+              </label>
+              <label>
+                Your Age
+                <input className="input" type="number" min="0" value={applicantAge} onChange={(e) => setApplicantAge(e.target.value)} placeholder="Enter your age" />
+              </label>
+              <label>
+                Upload Documents
+                <input type="file" multiple onChange={(e) => handleUploadDocs(e.target.files)} />
+              </label>
+              {uploading && <div>Uploading...</div>}
+              {uploadedDocs.length > 0 && (
+                <div style={{ fontSize: 12, color: '#374151' }}>
+                  Uploaded:
+                  <ul>
+                    {uploadedDocs.map((u, i) => (
+                      <li key={i}><a href={u} target="_blank" rel="noreferrer">{u}</a></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {thankYou && (
+                <div style={{ color: '#16a34a', fontWeight: 700 }}>Thank you for submitting your application.</div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn-secondary" onClick={() => setShowApplyModal(false)}>Cancel</button>
+              <button className="btn-primary" onClick={submitApplication} disabled={uploading}>Submit Application</button>
             </div>
           </div>
         </div>, document.body)}

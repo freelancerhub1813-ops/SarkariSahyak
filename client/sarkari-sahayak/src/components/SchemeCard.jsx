@@ -1,14 +1,12 @@
 import React, { useState } from "react";
-import { FaFileAlt, FaCalendarAlt, FaCheck, FaSpinner } from "react-icons/fa";
-import axios from "axios";
+import { FaFileAlt, FaCalendarAlt } from "react-icons/fa";
 import "../styles/SchemeCard.css";
 import SchemeDetailsModal from "./SchemeDetailsModal";
 
 function SchemeCard({ scheme }) {
-  const [applying, setApplying] = useState(false);
-  const [applied, setApplied] = useState(false);
   const [error, setError] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [openApplyDirect, setOpenApplyDirect] = useState(false);
   const getCategoryDisplayName = (cat) => {
     const names = {
       agriculture: "Agriculture",
@@ -23,44 +21,22 @@ function SchemeCard({ scheme }) {
   };
 
   const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleDateString('en-IN', {
+    if (!dateString) return null;
+    const d = new Date(dateString);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-IN', {
       year: 'numeric',
       month: 'long',
       day: 'numeric'
     });
   };
 
-  const handleApply = async (e) => {
-    // prevent triggering card onClick
+  const handleApply = (e) => {
     e.stopPropagation();
     const userEmail = localStorage.getItem('email');
-    if (!userEmail) {
-      setError('Please login to apply for schemes');
-      return;
-    }
-
-    setApplying(true);
-    setError(null);
-
-    try {
-      await axios.post('http://localhost:9000/apply-scheme', {
-        user_email: userEmail,
-        scheme_id: scheme.id,
-        applied_documents: scheme.documents || '',
-        application_notes: `Applied for ${scheme.name}`
-      });
-
-      setApplied(true);
-      // Update localStorage to refresh applied schemes
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
-    } catch (err) {
-      console.error('Failed to apply for scheme:', err);
-      setError('Failed to apply for scheme. Please try again.');
-    } finally {
-      setApplying(false);
-    }
+    if (!userEmail) { setError('Please login to apply for schemes'); }
+    setOpenApplyDirect(true);
+    setShowDetails(true);
   };
 
   return (
@@ -94,9 +70,11 @@ function SchemeCard({ scheme }) {
         )}
         
         <div className="scheme-footer">
-          <span className="scheme-date">
-            <FaCalendarAlt /> Added: {formatDate(scheme.created_at)}
-          </span>
+          {formatDate(scheme.created_at) && (
+            <span className="scheme-date">
+              <FaCalendarAlt /> Added: {formatDate(scheme.created_at)}
+            </span>
+          )}
           
           <div className="scheme-actions">
             {error && (
@@ -105,32 +83,17 @@ function SchemeCard({ scheme }) {
               </div>
             )}
             
-            {applied ? (
-              <button className="apply-btn applied" disabled>
-                <FaCheck />
-                Applied Successfully
-              </button>
-            ) : (
-              <button 
-                className="apply-btn" 
-                onClick={handleApply}
-                disabled={applying}
-              >
-                {applying ? (
-                  <>
-                    <FaSpinner className="spinning" />
-                    Applying...
-                  </>
-                ) : (
-                  'Apply Now'
-                )}
-              </button>
-            )}
+            <button 
+              className="apply-btn" 
+              onClick={handleApply}
+            >
+              Apply Now
+            </button>
           </div>
         </div>
       </div>
       {showDetails && (
-        <SchemeDetailsModal schemeId={scheme.id} onClose={() => setShowDetails(false)} />
+        <SchemeDetailsModal schemeId={scheme.id} onClose={() => { setShowDetails(false); setOpenApplyDirect(false); }} initialApplyOpen={openApplyDirect} />
       )}
     </div>
   );

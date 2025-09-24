@@ -1,7 +1,10 @@
 const express = require('express');
+try { require('dotenv').config(); } catch (e) { /* dotenv optional */ }
 const cors = require('cors');
 const mysql2 = require('mysql2');
 const multer = require('multer');
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch (e) { console.warn('nodemailer not installed; email notifications disabled'); }
 const fs = require('fs');
 const path = require('path');
 
@@ -15,6 +18,20 @@ const FILES_ROOT = path.join(__dirname, 'files');
 const PHOTOS_DIR = path.join(FILES_ROOT, 'documents', 'photos');
 const DOCS_DIR = path.join(FILES_ROOT, 'documents', 'docs');
 fs.mkdirSync(PHOTOS_DIR, { recursive: true });
+
+// Email transporter (configure via environment variables)
+let mailTransporter = null;
+if (nodemailer) {
+    mailTransporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST || 'smtp.example.com',
+        port: Number(process.env.SMTP_PORT || 587),
+        secure: false,
+        auth: process.env.SMTP_USER && process.env.SMTP_PASS ? {
+            user: process.env.SMTP_USER,
+            pass: process.env.SMTP_PASS
+        } : undefined,
+    });
+}
 fs.mkdirSync(DOCS_DIR, { recursive: true });
 app.use('/files', express.static(FILES_ROOT));
 
@@ -23,9 +40,14 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         const userEmail = req.body.user_email || req.query.user_email || '';
         const userName = req.body.user_name || req.query.user_name || (userEmail.includes('@') ? userEmail.split('@')[0] : 'unknown');
-        const safeFolder = (userName || 'unknown').toString().trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+        const emailLocal = (userEmail && userEmail.includes('@')) ? userEmail.split('@')[0] : '';
+        const safeUserFolder = (userName || 'unknown').toString().trim().replace(/[^a-zA-Z0-9._-]/g, '_');
+        const safeEmailFolder = (emailLocal || '').toString().trim().replace(/[^a-zA-Z0-9._-]/g, '_');
         const type = req.uploadType === 'photo' ? PHOTOS_DIR : DOCS_DIR;
-        const dest = path.join(type, safeFolder);
+        // Nested path: /[photos|docs]/<userName>/<emailLocalPart>
+        const dest = safeEmailFolder
+          ? path.join(type, safeUserFolder, safeEmailFolder)
+          : path.join(type, safeUserFolder);
         fs.mkdirSync(dest, { recursive: true });
         cb(null, dest);
     },
@@ -88,6 +110,50 @@ app.post("/login", (req, res) => {
     });
 });
 
+// Send notification email to applicant for application status
+app.post('/notify-application/:id', (req, res) => {
+    const appId = req.params.id;
+    const sql = `SELECT 
+        a.id, a.user_email, a.application_status, a.application_notes, a.applied_at, a.updated_at,
+        s.name as scheme_name
+      FROM applied_schemes a
+      JOIN schemes s ON a.scheme_id = s.id
+      WHERE a.id = ?`;
+    con.query(sql, [appId], async (err, rows) => {
+        if (err) { console.error('DB error:', err); res.status(500).send('Database error'); return; }
+        const rec = rows && rows[0];
+        if (!rec) { res.status(404).send('Application not found'); return; }
+        const to = rec.user_email;
+        const status = rec.application_status;
+        const schemeName = rec.scheme_name || 'Scheme';
+        const subject = `Update on your application for ${schemeName}: ${status.replace('_',' ').toUpperCase()}`;
+        const text = `Hello,
+
+Your application for "${schemeName}" has been updated.
+
+Current Status: ${status}
+Notes: ${rec.application_notes || 'N/A'}
+Applied On: ${rec.applied_at}
+Updated On: ${rec.updated_at}
+
+Thank you,
+Sarkari Sahayak`;
+
+        try {
+            if (!mailTransporter || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+                console.warn('SMTP not fully configured; skipping actual email send.');
+                res.json({ ok: true, message: 'SMTP not configured; pretending to send email', to, subject });
+                return;
+            }
+            const info = await mailTransporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject, text });
+            res.json({ ok: true, messageId: info.messageId });
+        } catch (e) {
+            console.error('Email send failed:', e);
+            res.status(500).send('Failed to send email');
+        }
+    });
+});
+
 // add scheme
 app.post("/schemes", (req, res) => {
     let sql = "INSERT INTO schemes(name, category, basic_info, objectives, benefits, eligibility, documents) VALUES(?,?,?,?,?,?,?)";
@@ -104,9 +170,10 @@ app.post("/schemes", (req, res) => {
     });
 });
 
-// list schemes (include created_at for UI)
+// list schemes
 app.get("/schemes", (req, res) => {
-    let sql = "SELECT id, name, category, basic_info, objectives, benefits, eligibility, documents, created_at FROM schemes ORDER BY id DESC";
+    // Some databases may not have created_at; avoid selecting it to prevent errors
+    let sql = "SELECT id, name, category, basic_info, objectives, benefits, eligibility, documents FROM schemes ORDER BY id DESC";
     con.query(sql, (error, result) => {
         if (error) {
             console.error("DB error:", error);
@@ -119,7 +186,7 @@ app.get("/schemes", (req, res) => {
 
 // get single scheme with rich fields
 app.get('/schemes/:id', (req, res) => {
-    const sql = 'SELECT id, name, category, basic_info, objectives, benefits, eligibility, documents, created_at FROM schemes WHERE id=?';
+    const sql = 'SELECT id, name, category, basic_info, objectives, benefits, eligibility, documents FROM schemes WHERE id=?';
     con.query(sql, [req.params.id], (error, result) => {
         if (error) { console.error('DB error:', error); res.status(500).send('Database error'); return; }
         res.json(result[0] || null);
@@ -144,6 +211,47 @@ app.post('/schemes/:id/questions', (req, res) => {
     con.query(sql, data, (error) => {
         if (error) { console.error('DB error:', error); res.status(500).send('Database error'); return; }
         res.send('Question added');
+    });
+});
+
+// update a single question
+app.put('/schemes/:schemeId/questions/:questionId', (req, res) => {
+    const { sort_order, question_text, expected_answer, next_on_yes, next_on_no, is_terminal_yes, is_terminal_no } = req.body;
+    const sql = `UPDATE scheme_questions SET
+                    sort_order = ?,
+                    question_text = ?,
+                    expected_answer = ?,
+                    next_on_yes = ?,
+                    next_on_no = ?,
+                    is_terminal_yes = ?,
+                    is_terminal_no = ?
+                 WHERE id = ? AND scheme_id = ?`;
+    const data = [
+        Number(sort_order) || 1,
+        question_text,
+        expected_answer === 'no' ? 'no' : 'yes',
+        (next_on_yes === null || next_on_yes === '' ? null : Number(next_on_yes)),
+        (next_on_no === null || next_on_no === '' ? null : Number(next_on_no)),
+        (is_terminal_yes ? 1 : 0),
+        (is_terminal_no ? 1 : 0),
+        Number(req.params.questionId),
+        Number(req.params.schemeId)
+    ];
+    con.query(sql, data, (error, result) => {
+        if (error) { console.error('DB error:', error); res.status(500).send('Database error'); return; }
+        if (result.affectedRows === 0) { res.status(404).send('Question not found'); return; }
+        res.send('Question updated');
+    });
+});
+
+// delete a single question
+app.delete('/schemes/:schemeId/questions/:questionId', (req, res) => {
+    const sql = `DELETE FROM scheme_questions WHERE id = ? AND scheme_id = ?`;
+    const data = [Number(req.params.questionId), Number(req.params.schemeId)];
+    con.query(sql, data, (error, result) => {
+        if (error) { console.error('DB error:', error); res.status(500).send('Database error'); return; }
+        if (result.affectedRows === 0) { res.status(404).send('Question not found'); return; }
+        res.send('Question deleted');
     });
 });
 
@@ -179,21 +287,36 @@ app.delete("/schemes/:id", (req, res) => {
 // Apply for a scheme (idempotent for same user+scheme)
 app.post("/apply-scheme", (req, res) => {
     const { user_email, scheme_id, applied_documents, application_notes } = req.body;
-    let sql = `INSERT INTO applied_schemes (user_email, scheme_id, applied_documents, application_notes) 
-               VALUES (?, ?, ?, ?)
-               ON DUPLICATE KEY UPDATE 
-               applied_documents = VALUES(applied_documents),
-               application_notes = VALUES(application_notes),
-               updated_at = CURRENT_TIMESTAMP`;
-    let data = [user_email, scheme_id, applied_documents || "", application_notes || ""];
-    
-    con.query(sql, data, (error, result) => {
-        if (error) {
-            console.error("DB error:", error);
-            res.status(500).send("Database error");
+    if (!user_email || !scheme_id) {
+        res.status(400).send("Missing required fields: user_email, scheme_id");
+        return;
+    }
+    // Ensure user exists for FK constraint
+    const ensureUserSql = "INSERT INTO users(uid,email) VALUES(?,?) ON DUPLICATE KEY UPDATE uid = uid";
+    con.query(ensureUserSql, [user_email, user_email], (uErr) => {
+        if (uErr) {
+            console.error("DB error (ensure user):", uErr);
+            res.status(500).send("Database error (ensure user)");
             return;
         }
-        res.send("Application submitted successfully");
+        let sql = `INSERT INTO applied_schemes (user_email, scheme_id, applied_documents, application_notes) 
+                   VALUES (?, ?, ?, ?)
+                   ON DUPLICATE KEY UPDATE 
+                   applied_documents = VALUES(applied_documents),
+                   application_notes = VALUES(application_notes),
+                   updated_at = CURRENT_TIMESTAMP`;
+        let data = [user_email, scheme_id, applied_documents || "", application_notes || ""];
+        con.query(sql, data, (error) => {
+            if (error) {
+                console.error("DB error (apply):", error);
+                // Provide hint if foreign key fails on scheme
+                const msg = String(error?.message || '').toLowerCase().includes('foreign key') ?
+                  'Invalid scheme_id or user_email (FK violation)' : 'Database error';
+                res.status(500).send(msg);
+                return;
+            }
+            res.send("Application submitted successfully");
+        });
     });
 });
 
@@ -304,16 +427,47 @@ app.post('/upload/document', (req, res, next) => { req.uploadType = 'document'; 
 // Update application status (for admin)
 app.put("/application-status/:id", (req, res) => {
     const { status, admin_notes } = req.body;
-    let sql = "UPDATE applied_schemes SET application_status = ?, application_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-    let data = [status, admin_notes || "", req.params.id];
-    
+    const id = req.params.id;
+    const sql = "UPDATE applied_schemes SET application_status = ?, application_notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+    const data = [status, admin_notes || "", id];
+
     con.query(sql, data, (error, result) => {
         if (error) {
             console.error("DB error:", error);
             res.status(500).send("Database error");
             return;
         }
-        res.send("Application status updated");
+
+        // Fetch full application to get user email and scheme for notification
+        const q = `SELECT a.id, a.user_email, a.application_status, a.application_notes, a.updated_at, s.name as scheme_name
+                   FROM applied_schemes a JOIN schemes s ON a.scheme_id = s.id WHERE a.id = ?`;
+        con.query(q, [id], async (e2, rows) => {
+            if (e2) {
+                console.error('DB error (post-update fetch):', e2);
+                res.send("Application status updated");
+                return;
+            }
+            const rec = rows && rows[0];
+            if (!rec) { res.send("Application status updated"); return; }
+
+            const to = rec.user_email;
+            const schemeName = rec.scheme_name || 'Scheme';
+            const subj = `Update on your application for ${schemeName}: ${String(rec.application_status || '').replace('_',' ').toUpperCase()}`;
+            const body = `Hello,\n\nYour application for "${schemeName}" has been updated.\n\nCurrent Status: ${rec.application_status}\nNotes: ${rec.application_notes || 'N/A'}\nUpdated On: ${rec.updated_at}\n\nThank you,\nSarkari Sahayak`;
+
+            try {
+                if (!mailTransporter || !process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+                    console.warn('SMTP not fully configured; skipping actual email send.');
+                    res.json({ ok: true, message: 'Application status updated (email not sent: SMTP not configured)', to, subject: subj });
+                    return;
+                }
+                const info = await mailTransporter.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to, subject: subj, text: body });
+                res.json({ ok: true, message: 'Application status updated and email sent', messageId: info.messageId });
+            } catch (sendErr) {
+                console.error('Email send failed:', sendErr);
+                res.json({ ok: true, message: 'Application status updated but failed to send email' });
+            }
+        });
     });
 });
 
